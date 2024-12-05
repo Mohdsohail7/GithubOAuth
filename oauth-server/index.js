@@ -5,16 +5,50 @@ const app = express();
 const cookieParser = require('cookie-parser');
 
 const { setSecureCookie } = require('./services/index');
+const { verifyAccessToken } = require('./middleware/index');
 
 require("dotenv").config();
 
-app.use(cors());
+app.use(cors({
+    credentials: true,
+    origin: 'http://localhost:3000'
+}));
 app.use(cookieParser());
 
 const PORT = process.env.PORT || 4000;
 
 app.get('/', (req, res) => {
   res.send(`<h1>Welcome to OAuth API Server.</h1>`);
+});
+
+app.get('/user/profile/github', verifyAccessToken, async (req, res) => {
+    try {
+        const { access_token } = req.cookies
+        const githubUserDataResponse = await axios.get('https://api.github.com/user', {
+            headers: {
+                Authorization: `Bearer ${access_token}`,
+            },
+        });
+
+        res.json({ user: githubUserDataResponse.data });
+    } catch (error) {
+        res.status(500).json({ error: 'Could not fetch user github profile.'})
+    }
+});
+
+app.get('/user/profile/google', verifyAccessToken, async (req, res) => {
+    try {
+        const { access_token } = req.cookies
+        const googleUserDataResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+                Authorization: `Bearer ${access_token}`,
+            },
+        });
+
+        res.json({ user: googleUserDataResponse.data });
+    } catch (error) {
+        res.status(500).json({ error: 'Could not fetch user google profile.'})
+    }
 });
 
 app.get("/auth/github", (req, res) => {
@@ -42,7 +76,7 @@ app.get("/auth/github/callback", async (req, res) => {
         console.log("Access Token:", accessToken);
 
         setSecureCookie(res, accessToken);
-        return res.redirect(`${process.env.FRONTEND_URL}/v1/profile/github`);
+        return res.redirect(`${process.env.FRONTEND_URL}/v2/profile/github`);
     } catch (error) {
         console.error("Error during token exchange:", error);
         res.status(500).json(error);
@@ -50,7 +84,7 @@ app.get("/auth/github/callback", async (req, res) => {
 });
 
 app.get('/auth/google', (req, res) => {
-    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=http://localhost:${PORT}/auth/google/callback&response_type=code&scope=profile email`;
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=http://localhost:${PORT}/auth/google/callback&response_type=code&scope=profile email`;
 
     res.redirect(googleAuthUrl);
 });
@@ -78,7 +112,7 @@ app.get('/auth/google/callback', async (req, res) => {
 
     accessToken = tokenResponse.data.access_token;
     setSecureCookie(res, accessToken);
-    return res.redirect(`${process.env.FRONTEND_URL}/v1/profile/google`);
+    return res.redirect(`${process.env.FRONTEND_URL}/v2/profile/google`);
 
     } catch (error) {
         console.error(error);
