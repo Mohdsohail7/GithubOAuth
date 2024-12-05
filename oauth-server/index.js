@@ -2,9 +2,14 @@ const express = require('express');
 const axios = require("axios");
 const cors = require("cors");
 const app = express();
+const cookieParser = require('cookie-parser');
+
+const { setSecureCookie } = require('./services/index');
+
 require("dotenv").config();
 
 app.use(cors());
+app.use(cookieParser());
 
 const PORT = process.env.PORT || 4000;
 
@@ -19,7 +24,9 @@ app.get("/auth/github", (req, res) => {
 
 app.get("/auth/github/callback", async (req, res) => {
     const { code } = req.query;
-    console.log("GitHub Authorization Code:", code);
+    if (!code) {
+        return res.status(400).send('Authorization code not provided.');
+    }
 
     try {
         const tokenResponse = await axios.post(
@@ -34,7 +41,7 @@ app.get("/auth/github/callback", async (req, res) => {
         const accessToken = tokenResponse.data.access_token;
         console.log("Access Token:", accessToken);
 
-        res.cookie("access_token", accessToken);
+        setSecureCookie(res, accessToken);
         return res.redirect(`${process.env.FRONTEND_URL}/v1/profile/github`);
     } catch (error) {
         console.error("Error during token exchange:", error);
@@ -70,7 +77,7 @@ app.get('/auth/google/callback', async (req, res) => {
     );
 
     accessToken = tokenResponse.data.access_token;
-    res.cookie('access_token', accessToken);
+    setSecureCookie(res, accessToken);
     return res.redirect(`${process.env.FRONTEND_URL}/v1/profile/google`);
 
     } catch (error) {
